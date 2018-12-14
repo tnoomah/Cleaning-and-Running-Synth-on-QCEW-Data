@@ -1,0 +1,229 @@
+---
+title: "County Synthetic Controls"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(Synth)
+```
+
+## County table for ages
+```{r}
+select_counties_age <- 
+  read_csv(url("https://ledextract.ces.census.gov/request/427f79bee0524db1853ff22584700dde.csv"))
+
+select_counties_age <- 
+  mutate_all(select_counties_age, function(x) readr::parse_number(x))
+
+select_counties_age <- 
+  select_counties_age %>% 
+  mutate(quarter = (quarter/4) - 0.25) %>%
+  mutate(time = year + quarter) %>%
+  mutate(time = time*4 - 8063) %>%
+  mutate(geo_industry = geography + (industry/100)) %>% 
+  mutate(sex = sex - 1) %>%
+  mutate(agegrp = 
+           ifelse(agegrp <= 3, 1, 0))
+
+county_data_age <- 
+  select_counties_age %>% 
+  group_by(geo_industry, time) %>% 
+  summarise(percent_female = weighted.mean(sex, Emp, na.rm = TRUE),
+            percent_young = weighted.mean(agegrp, Emp, na.rm = TRUE),
+            firm_job_change = sum(FrmJbC, na.rm = TRUE),
+            mean_earnings = weighted.mean(EarnBeg, Emp, na.rm = TRUE),
+            Emp = sum(Emp, na.rm = TRUE),
+            female_earnings = weighted.mean((mean_earnings * sex), (Emp * sex), na.rm = TRUE),
+            young_earnings = weighted.mean((mean_earnings * agegrp), (Emp * agegrp), na.rm = TRUE),
+            female_Emp = percent_female*Emp,
+            young_Emp = percent_young*Emp
+  )
+```
+
+## County table for race
+
+```{r}
+select_counties_race <- 
+  read_csv(url("https://ledextract.ces.census.gov/request/0f209b8fedfa4fc093aacbf6f6d9d304.csv"))
+
+select_counties_race <- 
+  mutate_all(select_counties_race, function(x) readr::parse_number(x))
+
+select_counties_race <-
+  select_counties_race %>% 
+  mutate(quarter = (quarter/4) - 0.25) %>%
+  mutate(time = year + quarter) %>%
+  mutate(time = time*4 - 8063) %>%
+  mutate(geo_industry = geography + (industry/100)) %>%
+  mutate(race = ifelse(race == 1, 0, 1)) %>% 
+  mutate(ethnicity = ethnicity - 1) 
+
+county_data_race <- 
+  select_counties_race %>% 
+  group_by(geo_industry, time) %>% 
+  summarise(percent_latino = weighted.mean(ethnicity, Emp, na.rm = TRUE),
+            percent_nonwhite = weighted.mean(race, Emp, na.rm = TRUE),
+            firm_job_change = sum(FrmJbC, na.rm = TRUE),
+            mean_earnings = weighted.mean(EarnBeg, Emp, na.rm = TRUE),
+            Emp = sum(Emp, na.rm = TRUE),
+            nonwhite_earnings = weighted.mean(EarnBeg * race, (Emp * race), na.rm = TRUE),
+            latino_earnings = weighted.mean((mean_earnings * ethnicity), (Emp * ethnicity), na.rm = TRUE),
+            latino_Emp = percent_latino * Emp,
+            nonwhite_Emp = percent_nonwhite * Emp
+  )
+
+
+```
+
+## County Table for Education
+
+```{r}
+select_counties_edu <- 
+  read_csv(url("https://ledextract.ces.census.gov/request/995f57bf164c4f5389c26ddb6a58c4e3.csv"))
+
+select_counties_edu <- 
+  mutate_all(select_counties_edu, function(x) readr::parse_number(x))
+
+select_counties_edu <-
+  select_counties_edu %>% 
+  mutate(quarter = (quarter/4) - 0.25) %>%
+  mutate(time = year + quarter) %>%
+  mutate(time = time*4 - 8063) %>%
+  mutate(geo_industry = geography + (industry/100)) %>%
+  mutate(education = ifelse(education == 4, 1, 0)) %>% 
+  mutate(sex = sex - 1) 
+
+county_data_edu <- 
+  select_counties_edu %>% 
+  group_by(geo_industry, time) %>% 
+  summarise(percent_no_ba = weighted.mean(education, Emp, na.rm = TRUE),
+            firm_job_change = sum(FrmJbC, na.rm = TRUE),
+            mean_earnings = weighted.mean(EarnBeg, Emp, na.rm = TRUE),
+            Emp = sum(Emp, na.rm = TRUE),
+            no_ba_earnings = weighted.mean((mean_earnings * education), (Emp * education), na.rm = TRUE),
+            no_ba_Emp = Emp * percent_no_ba)
+
+```
+
+## Merge County Tables
+
+```{r}
+county_data <- 
+  county_data_age %>% 
+  inner_join(county_data_edu, by = c("geo_industry", "time")) %>%
+  inner_join(county_data_race, by = c("geo_industry", "time"))
+
+county_data <-
+  county_data %>%
+  mutate(firm_job_change = (firm_job_change + firm_job_change.x + firm_job_change.y)/3) %>%
+  mutate(mean_earnings = (mean_earnings + mean_earnings.x + mean_earnings.y)/3) %>%
+  mutate(Emp = (Emp + Emp.x + Emp.y)/3)
+
+county_data <-
+  county_data %>%
+  select("geo_industry", "time", "percent_female", "percent_young", 
+         "female_earnings", "young_earnings", "female_Emp", "young_Emp", 
+         "percent_no_ba", "no_ba_earnings", "no_ba_Emp", "percent_latino", 
+         "percent_nonwhite", "firm_job_change", "mean_earnings", "Emp", 
+         "nonwhite_earnings", "latino_earnings", "latino_Emp", "nonwhite_Emp")
+
+county_data$geo_industry_chr <- 
+  county_data$geo_industry %>% 
+  readr::parse_character()
+  
+county_data <-
+  county_data %>%
+  group_by(geo_industry) %>%
+  mutate(female_Emp_growth = female_Emp/lag(female_Emp)) %>%
+  mutate(no_ba_Emp_growth = no_ba_Emp/lag(no_ba_Emp)) %>%
+  mutate(latino_Emp_growth = latino_Emp/lag(latino_Emp)) %>%
+  mutate(nonwhite_Emp_growth = nonwhite_Emp/lag(nonwhite_Emp)) %>%
+  mutate(female_earnings_growth = female_earnings/lag(female_earnings)) %>%
+  mutate(young_earnings_growth = young_earnings/lag(young_earnings)) %>%
+  mutate(no_ba_earnings_growth = no_ba_earnings/lag(no_ba_earnings)) %>%
+  mutate(earnings_growth = mean_earnings/lag(mean_earnings)) %>%
+  mutate(nonwhite_earnings_growth = nonwhite_earnings/lag(nonwhite_earnings)) %>%
+  mutate(latino_earnings_growth = latino_earnings/lag(latino_earnings))
+  
+county_data <- as.data.frame(county_data)
+
+dependent_variables <- c("percent_female", "percent_young", 
+         "female_earnings_growth", "young_earnings_growth", "female_Emp", "young_Emp", 
+         "percent_no_ba", "no_ba_Emp", "percent_latino", 
+         "percent_nonwhite", "firm_job_change", "earnings_growth", "Emp", 
+         "nonwhite_earnings_growth", "latino_earnings_growth", "latino_Emp", "nonwhite_Emp",
+         "nonwhite_Emp_growth", "latino_Emp_growth")
+
+county_list <- county_data[["geo_industry"]] %/% 1 %>% unique() %>% c()
+```
+
+## Placebo Tests
+
+```{r}
+synthesizer <- function(county, industry, dependent){
+full_dataprep <-
+  dataprep(
+    foo = county_data,
+    predictors = setdiff(dependent_variables, dependent),
+    predictors.op = "mean",
+    dependent = dependent,
+    unit.variable = "geo_industry",
+    time.variable = "time",
+    special.predictors = NULL,
+    treatment.identifier = county + industry,
+    controls.identifier = (setdiff(county_list, county)) + industry,
+    time.predictors.prior = c(-15:-1),
+    time.optimize.ssr = c(-15:0),
+    unit.names.variable = "geo_industry_chr",
+    time.plot = -15:8
+    )
+
+full_synth <- synth(full_dataprep)
+
+round(full_synth$solution.w,2)
+
+full_synth$solution.v
+
+synth.tables <- synth.tab(
+  dataprep.res = full_dataprep,
+  synth.res = full_synth)
+print(synth.tables)
+
+#path.plot(dataprep.res = full_dataprep, synth.res = full_synth, Ylab = c(str_c(dependent, ", Quarterly")))
+
+gaps.plot(dataprep.res = full_dataprep, synth.res = full_synth)
+
+gaps <- 
+  full_dataprep$Y1plot-(
+    full_dataprep$Y0plot %*% 
+      full_synth$solution.w) ; annual_dependent_change <- gaps[16:23] %>% mean() *4
+
+data.frame(dependent, annual_dependent_change, county + industry)
+}
+
+# Run the function on a single sector in a single county:
+synthesizer(6075, 0.44, "female_earnings_growth")
+
+# Run the function on all the counties
+difs_fem_earn_growth_44 <- 
+  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "female_earnings_growth")))
+
+difs_fem_Emp_growth_44 <- 
+  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "female_Emp_growth")))
+
+difs_no_ba_earn_growth_44 %>% arrange(desc(annual_dependent_change))
+
+difs_no_ba_Emp_growth_44 <- 
+  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "no_ba_Emp_growth")))
+
+difs_no_ba_earn_growth_44 %>% arrange(desc(annual_dependent_change))
+
+difs_no_ba_earn_growth_44 <- 
+  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "young_earnings_growth")))
+
+difs_nonwhite_earn_growth_44 <- 
+  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "nonwhite_earnings_growth")))
+
+difs_latino_earn_growth_44 %>% arrange(desc(annual_dependent_change))
+```
