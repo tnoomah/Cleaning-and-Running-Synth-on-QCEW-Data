@@ -202,28 +202,14 @@ gaps <-
 data.frame(dependent, annual_dependent_change, county + industry)
 }
 
+# The function synthesizer takes 3 terms, a county or list of counties, an industry
+# (divided by 100) and a dependent variable from the list dependent_variables 
+# which can be found at line 151. 
+
 # Run the function on a single sector in a single county:
 synthesizer(6075, 0.44, "female_earnings_growth")
 
 # Run the function on all the counties
 difs_fem_earn_growth_44 <- 
   as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "female_earnings_growth")))
-
-difs_fem_Emp_growth_44 <- 
-  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "female_Emp_growth")))
-
-difs_no_ba_earn_growth_44 %>% arrange(desc(annual_dependent_change))
-
-difs_no_ba_Emp_growth_44 <- 
-  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "no_ba_Emp_growth")))
-
-difs_no_ba_earn_growth_44 %>% arrange(desc(annual_dependent_change))
-
-difs_no_ba_earn_growth_44 <- 
-  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "young_earnings_growth")))
-
-difs_nonwhite_earn_growth_44 <- 
-  as.tibble(do.call(rbind, lapply(county_list, synthesizer, 0.44, "nonwhite_earnings_growth")))
-
-difs_latino_earn_growth_44 %>% arrange(desc(annual_dependent_change))
 ```
