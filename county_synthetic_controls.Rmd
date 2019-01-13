@@ -11,7 +11,7 @@ library(Synth)
 ## County table for ages
 ```{r}
 select_counties_age <- 
-  read_csv(url("https://ledextract.ces.census.gov/request/427f79bee0524db1853ff22584700dde.csv"))
+  read_csv("select_counties_age.csv")
 
 select_counties_age <- 
   mutate_all(select_counties_age, function(x) readr::parse_number(x))
@@ -45,7 +45,7 @@ county_data_age <-
 
 ```{r}
 select_counties_race <- 
-  read_csv(url("https://ledextract.ces.census.gov/request/0f209b8fedfa4fc093aacbf6f6d9d304.csv"))
+  read_csv("select_counties_race.csv")
 
 select_counties_race <- 
   mutate_all(select_counties_race, function(x) readr::parse_number(x))
@@ -80,7 +80,7 @@ county_data_race <-
 
 ```{r}
 select_counties_edu <- 
-  read_csv(url("https://ledextract.ces.census.gov/request/995f57bf164c4f5389c26ddb6a58c4e3.csv"))
+  read_csv("select_counties_edu.csv")
 
 select_counties_edu <- 
   mutate_all(select_counties_edu, function(x) readr::parse_number(x))
